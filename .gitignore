@@ -1,0 +1,43 @@
+# Nuxt
+.nuxt
+.output
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs
+*.log
+build.log
+build_log.txt
+stress-test*.log
+
+# Build
+dist
+.cache
+
+# Cloudflare
+.wrangler
+wrangler.toml
+wrangler.toml.backup
+
+# Misc
+.turbo
+.vercel

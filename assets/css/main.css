@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-200 cursor-pointer;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary text-white shadow-lg shadow-primary-glow hover:bg-primary-light hover:-translate-y-0.5;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-bg-surface text-text border border-white/5 hover:bg-bg-hover hover:border-white/10;
+  }
+  
+  /* Cards */
+  .card {
+    @apply bg-bg-surface/50 backdrop-blur-sm border border-white/5 rounded-2xl p-6 shadow-xl transition-all duration-200 hover:border-white/10;
+  }
+  
+  /* Inputs */
+  .input {
+    @apply w-full px-5 py-4 bg-bg-secondary border border-white/5 rounded-xl text-text placeholder-text-muted transition-all duration-200 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+  
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full tracking-wide;
+  }
+  
+  .badge-primary {
+    @apply badge bg-primary/10 text-primary border border-primary/20;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-bounce-slow {
+    animation: bounce-slow 3s ease-in-out infinite;
+  }
+  
+  .animate-timeline-flow {
+    animation: timeline-flow 3s linear infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes timeline-flow {
+  0% {
+    top: -50%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}

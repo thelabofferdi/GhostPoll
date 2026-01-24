@@ -1,0 +1,14 @@
+# Wrangler Configuration for Cloudflare Pages
+name = "ghostpoll"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Pages configuration
+pages_build_output_dir = ".output/public"
+
+# Environment variables for production
+# IMPORTANT: Replace these with your actual values from Upstash Console
+# Get your credentials at: https://console.upstash.com/
+[vars]
+UPSTASH_REDIS_URL = "https://your-redis-instance.upstash.io"
+UPSTASH_REDIS_TOKEN = "your_upstash_token_here"
