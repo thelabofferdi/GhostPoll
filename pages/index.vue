@@ -39,7 +39,7 @@
         </h1>
 
         <!-- Subtext -->
-        <p class="text-lg text-slate-400 max-w-lg mb-12 leading-relaxed font-light">
+        <p class="text-xl text-slate-300 max-w-lg mb-12 leading-relaxed font-normal">
             {{ t('hero_subtitle') }}
         </p>
 
@@ -187,7 +187,7 @@
             @click="scrollToCreate"
             class="group relative px-8 py-4 bg-[#1a1510] hover:bg-[#201a14] border border-orange-500/30 hover:border-orange-500/50 rounded-2xl flex items-center gap-3 transition-all duration-300 shadow-[0_0_30px_-10px_rgba(249,115,22,0.3)] hover:shadow-[0_0_40px_-5px_rgba(249,115,22,0.4)]"
           >
-            <span class="text-white font-semibold text-lg">{{ t('start_poll') }}</span>
+            <span class="text-white font-semibold text-lg">{{ language === 'en' ? 'Try it now' : 'Essayer maintenant' }}</span>
             <span class="material-icons text-orange-500 text-xl group-hover:translate-x-1 transition-transform">bolt</span>
           </button>
       </div>
@@ -427,7 +427,7 @@ import { useApi } from '~/composables/useApi'
 import { useLanguage } from '~/composables/useLanguage'
 
 const router = useRouter()
-const { t } = useLanguage()
+const { t, language } = useLanguage()
 
 // Methods
 const scrollToCreate = () => {
