@@ -15,9 +15,12 @@ export default defineNuxtConfig({
             '/api/**': {
                 cors: true,
                 headers: {
-                    'Access-Control-Allow-Origin': '*',
+                    // Security: Restrict CORS to specific origins in production
+                    // In development, allow localhost. In production, set ALLOWED_ORIGINS env var
+                    'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGINS || (process.env.NODE_ENV === 'production' ? 'https://ghostpoll.pages.dev' : '*'),
                     'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                    'Access-Control-Allow-Credentials': 'false' // Set to 'true' only if needed with specific origins
                 }
             },
         },

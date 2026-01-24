@@ -109,11 +109,18 @@ export function createRedisClient(url: string, token: string): RedisClient {
         async hgetall(key: string): Promise<Record<string, string>> {
             const result = await execute<string[]>(['HGETALL', key]);
 
+            // Security: Block dangerous keys to prevent prototype pollution
+            const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+
             // Convertir le tableau plat [k1, v1, k2, v2] en objet
             const obj: Record<string, string> = {};
             if (Array.isArray(result)) {
                 for (let i = 0; i < result.length; i += 2) {
-                    obj[result[i]] = result[i + 1];
+                    const key = result[i];
+                    // Skip dangerous keys
+                    if (!DANGEROUS_KEYS.includes(key)) {
+                        obj[key] = result[i + 1];
+                    }
                 }
             }
 
@@ -280,11 +287,11 @@ export const redis = new Proxy({} as RedisClient, {
             const url = config.upstashRedisUrl;
             const token = config.upstashRedisToken;
 
-            console.log('[Redis Config Check] URL:', url ? (url.substring(0, 8) + '...') : 'MISSING')
-            console.log('[Redis Config Check] Token:', token ? (token.substring(0, 5) + '...') : 'MISSING')
+            // Security: Never log credentials - only log connection status
+            const hasCredentials = Boolean(url && token && url !== 'mock' && token !== 'mock');
 
             // Use mock if credentials are not configured or are mock values
-            if (!url || !token || url === 'mock' || token === 'mock') {
+            if (!hasCredentials) {
                 if (process.env.NODE_ENV === 'development') {
                     console.warn('[Redis] Using in-memory mock (no Upstash credentials configured)');
                 }
@@ -293,8 +300,8 @@ export const redis = new Proxy({} as RedisClient, {
                 _redisInstance = createRedisClient(url, token);
             }
         }
-        // @ts-ignore
-        return _redisInstance[prop];
+        // Properly typed Proxy access
+        return (_redisInstance as any)[prop];
     }
 })
 
