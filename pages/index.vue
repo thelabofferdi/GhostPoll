@@ -1,5 +1,13 @@
 <template>
   <div class="relative min-h-screen bg-[#020617] font-sans text-slate-100 overflow-x-hidden selection:bg-orange-500 selection:text-white">
+    <!-- Scroll Progress Indicator -->
+    <div class="fixed top-0 left-0 right-0 h-1 bg-white/5 z-[100]">
+      <div 
+        class="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-300 ease-out"
+        :style="{ width: scrollProgress + '%' }"
+      ></div>
+    </div>
+
     <!-- Background Gradients -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
       <div class="absolute -top-[20%] -left-[10%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[120px]"></div>
@@ -421,13 +429,33 @@
 </style>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '~/composables/useApi'
 import { useLanguage } from '~/composables/useLanguage'
 
 const router = useRouter()
 const { t, language } = useLanguage()
+
+// Scroll Progress
+const scrollProgress = ref(0)
+
+const updateScrollProgress = () => {
+  const windowHeight = window.innerHeight
+  const documentHeight = document.documentElement.scrollHeight
+  const scrollTop = window.scrollY
+  const scrollable = documentHeight - windowHeight
+  scrollProgress.value = (scrollTop / scrollable) * 100
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', updateScrollProgress)
+  updateScrollProgress() // Initial calculation
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateScrollProgress)
+})
 
 // Methods
 const scrollToCreate = () => {
