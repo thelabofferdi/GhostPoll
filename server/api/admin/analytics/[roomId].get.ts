@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     // Récupérer les analytics temps réel
     const now = Date.now()
     const hourAgo = now - (60 * 60 * 1000)
-    
+
     // Compter les participants uniques (approximation via les fingerprints stockés)
     const fingerprintKeys = await redis.keys(`voted:${roomId}:*`)
     const uniqueParticipants = fingerprintKeys.length
@@ -62,25 +62,25 @@ export default defineEventHandler(async (event) => {
 
     // Récupérer les données de vote pour les graphiques
     let chartData: any = null
-    
+
     if (room.type === 'emoji_vote') {
       const votes = await redis.hgetall(`votes:${roomId}`)
-      const total = Object.values(votes).reduce((sum: number, count: any) => sum + parseInt(count), 0)
-      
+      const total = Object.values(votes).reduce((sum: number, count: any) => sum + parseInt(count, 10), 0)
+
       chartData = Object.entries(votes).map(([emoji, count]) => ({
         emoji,
-        count: parseInt(count as string),
-        percentage: total > 0 ? (parseInt(count as string) / total) * 100 : 0
+        count: parseInt(count as string, 10),
+        percentage: total > 0 ? (parseInt(count as string, 10) / total) * 100 : 0
       }))
     } else if (room.type === 'poll') {
       const pollData = await redis.hgetall(`poll:${roomId}`)
-      const total = Object.values(pollData).reduce((sum: number, count: any) => sum + parseInt(count), 0)
-      
+      const total = Object.values(pollData).reduce((sum: number, count: any) => sum + parseInt(count, 10), 0)
+
       chartData = room.pollOptions?.map(option => ({
         id: option.id,
         text: option.text,
-        votes: parseInt(pollData[option.id]) || 0,
-        percentage: total > 0 ? ((parseInt(pollData[option.id]) || 0) / total) * 100 : 0
+        votes: parseInt(pollData[option.id], 10) || 0,
+        percentage: total > 0 ? ((parseInt(pollData[option.id], 10) || 0) / total) * 100 : 0
       })) || []
     }
 
@@ -95,11 +95,11 @@ export default defineEventHandler(async (event) => {
 
   } catch (error: any) {
     console.error('[Analytics Error]', error)
-    
+
     if (error.statusCode) {
       throw error
     }
-    
+
     throw createError({
       statusCode: 500,
       statusMessage: 'Failed to get analytics'

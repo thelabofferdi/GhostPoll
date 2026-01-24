@@ -131,7 +131,7 @@ export default defineEventHandler(async (event) => {
                 if (previousVote && previousVote !== body.optionId) {
                     // Décrémenter l'ancien et incrémenter le nouveau
                     const currentOld = await redis.hget(pollKey, previousVote) || '0'
-                    await redis.hset(pollKey, previousVote, Math.max(0, parseInt(currentOld) - 1).toString())
+                    await redis.hset(pollKey, previousVote, Math.max(0, parseInt(currentOld, 10) - 1).toString())
                 }
 
                 if (!previousVote || previousVote !== body.optionId) {
@@ -146,7 +146,7 @@ export default defineEventHandler(async (event) => {
             const results = room.pollOptions?.map(option => ({
                 id: option.id,
                 text: option.text,
-                votes: parseInt(pollData[option.id]) || 0
+                votes: parseInt(pollData[option.id], 10) || 0
             })) || []
 
             return {

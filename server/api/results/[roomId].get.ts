@@ -82,7 +82,7 @@ export default defineEventHandler(async (event) => {
       results = room.pollOptions?.map(option => ({
         id: option.id,
         text: option.text,
-        votes: parseInt(pollData[option.id]) || 0
+        votes: parseInt(pollData[option.id], 10) || 0
       })) || []
 
       total = results.reduce((sum: number, opt: any) => sum + opt.votes, 0)

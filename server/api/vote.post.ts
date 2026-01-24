@@ -120,8 +120,8 @@ export default defineEventHandler(async (event) => {
                 const currentOld = await redis.hget(votesKey, previousVote as string) || '0'
                 const currentNew = await redis.hget(votesKey, body.emoji) || '0'
 
-                await redis.hset(votesKey, previousVote as string, Math.max(0, parseInt(currentOld) - 1).toString())
-                await redis.hset(votesKey, body.emoji, (parseInt(currentNew) + 1).toString())
+                await redis.hset(votesKey, previousVote as string, Math.max(0, parseInt(currentOld, 10) - 1).toString())
+                await redis.hset(votesKey, body.emoji, (parseInt(currentNew, 10) + 1).toString())
             } else if (!previousVote) {
                 await redis.hincrby(votesKey, body.emoji, 1)
             }
