@@ -29,7 +29,7 @@
         <span class="material-icons text-4xl text-red-500 mb-4">warning</span>
         <h2 class="text-xl font-bold text-red-400 mb-2">Error</h2>
         <p class="text-red-200/70 mb-6">{{ error }}</p>
-        <button @click="loadRoom" class="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-6 py-2 rounded-xl transition-all border border-red-500/20">
+        <button @click="() => loadRoom()" class="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-6 py-2 rounded-xl transition-all border border-red-500/20">
           {{ t('try_again') }}
         </button>
       </div>
@@ -59,7 +59,7 @@
 
         <!-- Emoji Vote -->
         <div v-if="room.type === 'emoji_vote'" class="bg-[#1e293b]/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 md:p-8">
-          <div v-if="!hasVoted" class="space-y-4">
+          <div v-if="canVote" class="space-y-4">
             <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest text-center mb-6">{{ t('how_feel') }}</h3>
             <div class="grid grid-cols-1 gap-3">
               <button
@@ -129,7 +129,7 @@
 
         <!-- Poll Vote -->
         <div v-else-if="room.type === 'poll'" class="bg-[#1e293b]/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 md:p-8">
-          <div v-if="!hasVoted" class="space-y-4">
+          <div v-if="canVote" class="space-y-4">
             <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">{{ t('choose_option') }}</h3>
             <div class="space-y-3">
               <button
@@ -192,17 +192,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Live Results Toggle -->
-        <div v-if="hasVoted" class="text-center pt-4">
-          <button
-            @click="toggleLiveResults"
-            class="text-sm font-medium text-slate-500 hover:text-white transition-colors flex items-center justify-center gap-2 mx-auto"
-          >
-            <span class="material-icons text-lg">{{ showLiveResults ? 'visibility_off' : 'visibility' }}</span>
-            {{ showLiveResults ? t('hide_results') : t('show_results') }}
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -226,7 +215,6 @@ const loading = ref(true)
 const voting = ref(false)
 const hasVoted = ref(false)
 const error = ref<string | null>(null)
-const showLiveResults = ref(false)
 
 // Emoji vote
 const selectedEmoji = ref<string | null>(null)
@@ -249,58 +237,73 @@ const pollOptions = computed(() => {
   return []
 })
 
+const canVote = computed(() => !hasVoted.value || room.value?.voteMode === 'allow_revote')
+
 // Countdown
 const timeLeft = ref('')
-let countdownInterval: NodeJS.Timeout | null = null
+let countdownInterval: ReturnType<typeof setInterval> | null = null
+let pollInterval: ReturnType<typeof setInterval> | null = null
 
 const updateCountdown = () => {
   if (!room.value?.expiresAt) return
-  
+
   const now = Date.now()
   const diff = room.value.expiresAt - now
-  
+
   if (diff <= 0) {
-    timeLeft.value = 'Expired' // EN
+    timeLeft.value = 'Expired'
     return
   }
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  
-  if (hours > 0) {
-    timeLeft.value = `${hours}h ${minutes}m`
-  } else {
-    timeLeft.value = `${minutes}m`
-  }
+
+  timeLeft.value = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
 }
 
 const getDefaultTitle = () => {
   switch (room.value?.type) {
-    case 'emoji_vote': return 'Rate with emojis' // EN
-    case 'poll': return 'Vote for your choice' // EN
+    case 'emoji_vote': return 'Rate with emojis'
+    case 'poll': return 'Vote for your choice'
     default: return 'Vote'
   }
 }
 
-const loadRoom = async () => {
+const loadRoom = async (silent = false) => {
   try {
-    loading.value = true
+    if (!silent) loading.value = true
     error.value = null
-    
+
     const { apiCall } = useApi()
     const response = await apiCall(`/api/results/${roomId.value}`)
     room.value = response
     results.value = response
-    
-    // Check if already voted (from localStorage)
+    updateCountdown()
+
     const votedKey = `voted_${roomId.value}`
     hasVoted.value = localStorage.getItem(votedKey) === 'true'
-    
   } catch (err: any) {
-    error.value = err.data?.message || 'Error loading room' // EN
+    if (!silent) {
+      error.value = err.data?.message || 'Error loading room'
+    }
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
+}
+
+const markAsVoted = async () => {
+  hasVoted.value = true
+  localStorage.setItem(`voted_${roomId.value}`, 'true')
+  await loadRoom()
+}
+
+const handleVoteError = async (err: any) => {
+  const status = err.statusCode || err.status || err.response?.status || err.data?.statusCode
+  if (status === 409) {
+    await markAsVoted()
+    return
+  }
+  error.value = err.data?.message || err.data?.statusMessage || 'Error submitting vote'
 }
 
 const selectEmoji = (emoji: string) => {
@@ -313,14 +316,12 @@ const selectPollOption = (optionId: string) => {
 
 const submitVote = async () => {
   if (!selectedEmoji.value) return
-  
+
   try {
     voting.value = true
-    
     const fingerprint = getFingerprint()
-
     const { apiCall } = useApi()
-    
+
     await apiCall('/api/vote', {
       method: 'POST',
       body: {
@@ -329,13 +330,10 @@ const submitVote = async () => {
         fingerprint
       }
     })
-    
-    hasVoted.value = true
-    localStorage.setItem(`voted_${roomId.value}`, 'true')
-    await loadRoom()
-    
+
+    await markAsVoted()
   } catch (err: any) {
-    error.value = err.data?.message || 'Error submitting vote' // EN
+    await handleVoteError(err)
   } finally {
     voting.value = false
   }
@@ -343,14 +341,12 @@ const submitVote = async () => {
 
 const submitPollVote = async () => {
   if (!selectedPollOption.value) return
-  
+
   try {
     voting.value = true
-    
     const fingerprint = getFingerprint()
-
     const { apiCall } = useApi()
-    
+
     await apiCall('/api/submit', {
       method: 'POST',
       body: {
@@ -360,13 +356,10 @@ const submitPollVote = async () => {
         fingerprint
       }
     })
-    
-    hasVoted.value = true
-    localStorage.setItem(`voted_${roomId.value}`, 'true')
-    await loadRoom()
-    
+
+    await markAsVoted()
   } catch (err: any) {
-    error.value = err.data?.message || 'Error submitting vote' // EN
+    await handleVoteError(err)
   } finally {
     voting.value = false
   }
@@ -378,72 +371,45 @@ const getPollOptionVotes = (optionId: string) => {
   return option?.votes || 0
 }
 
-const toggleLiveResults = () => {
-  showLiveResults.value = !showLiveResults.value
-}
 
-// Canvas fingerprinting implementation
 const getFingerprint = () => {
   try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return 'no_canvas';
-    
-    const txt = 'GhostPoll-Fingerprint-v1';
-    ctx.textBaseline = "top";
-    ctx.font = "14px 'Arial'";
-    ctx.fillStyle = "#f60";
-    ctx.fillRect(125,1,62,20);
-    ctx.fillStyle = "#069";
-    ctx.fillText(txt, 2, 15);
-    ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-    ctx.fillText(txt, 4, 17);
-    
-    return canvas.toDataURL();
-  } catch (e) {
-    return 'fingerprint_error_' + Math.random().toString(36).substring(7);
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return 'no_canvas'
+
+    const txt = 'GhostPoll-Fingerprint-v1'
+    ctx.textBaseline = 'top'
+    ctx.font = "14px 'Arial'"
+    ctx.fillStyle = '#f60'
+    ctx.fillRect(125, 1, 62, 20)
+    ctx.fillStyle = '#069'
+    ctx.fillText(txt, 2, 15)
+    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)'
+    ctx.fillText(txt, 4, 17)
+
+    return canvas.toDataURL()
+  } catch {
+    return `fingerprint_error_${Date.now().toString(36)}`
   }
 }
-
-// ...
-
-// In submitVote and submitPollVote:
-// const fingerprint = getFingerprint()
 
 onMounted(() => {
   loadRoom()
   updateCountdown()
-  countdownInterval = setInterval(updateCountdown, 60000) // Update every minute
+  countdownInterval = setInterval(updateCountdown, 60000)
+  pollInterval = setInterval(() => loadRoom(true), 3000)
 })
 
 onBeforeUnmount(() => {
   if (countdownInterval) {
     clearInterval(countdownInterval)
+    countdownInterval = null
   }
   if (pollInterval) {
     clearInterval(pollInterval)
+    pollInterval = null
   }
-})
-
-// Polling interval
-let pollInterval: NodeJS.Timeout | null = null
-
-onMounted(() => {
-  loadRoom()
-  updateCountdown()
-  countdownInterval = setInterval(updateCountdown, 60000) // Update every minute
-  
-  // Real-time updates
-  pollInterval = setInterval(async () => {
-    // Silent refresh
-    if (!roomId.value) return
-    const { apiCall } = useApi()
-    try {
-        const response = await apiCall(`/api/results/${roomId.value}`)
-        room.value = response
-        results.value = response
-    } catch(e) { /* ignore */ }
-  }, 3000)
 })
 </script>
 

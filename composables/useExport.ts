@@ -10,12 +10,12 @@ export const useExport = () => {
         method: 'GET'
       })
 
-      // Créer un blob et déclencher le téléchargement
-      const blob = new Blob([response], { type: 'application/pdf' })
+      // L'endpoint export renvoie des données JSON structurées.
+      const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `results-${roomId}.pdf`
+      link.download = `results-${roomId}.json`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -23,7 +23,7 @@ export const useExport = () => {
 
       return { success: true }
     } catch (error) {
-      console.error('Erreur téléchargement PDF:', error)
+      console.error('Erreur téléchargement export:', error)
       return { success: false, error }
     }
   }

@@ -1,15 +1,24 @@
-import { redis } from '../utils/redis'
+import { redis, getJson, roomTtlSeconds } from '../utils/redis'
 import { sha256 } from '../utils/crypto'
 import { checkSpeedLimit, checkVolumeLimit } from '../utils/ratelimit'
+import type { Room, VoteEmoji } from '~/types'
 
-const VALID_EMOJIS = ['😍', '😊', '😐', '😕', '😢']
+const VALID_EMOJIS: VoteEmoji[] = ['😍', '😊', '😐', '😕', '😢']
+
+function assertValidFingerprint(fingerprint: unknown) {
+    if (typeof fingerprint !== 'string' || fingerprint.length < 8 || fingerprint.length > 10000) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: 'Invalid fingerprint'
+        })
+    }
+}
 
 export default defineEventHandler(async (event) => {
     try {
         const clientIP = getRequestIP(event) || getHeader(event, 'x-forwarded-for') || getHeader(event, 'x-real-ip') || 'unknown'
         const userAgent = getHeader(event, 'user-agent') || 'unknown'
 
-        // 🛡️ Layer 1: Speed Limit (DDoS Protection)
         if (!await checkSpeedLimit(clientIP)) {
             throw createError({
                 statusCode: 429,
@@ -18,9 +27,7 @@ export default defineEventHandler(async (event) => {
         }
 
         const body = await readBody(event)
-        console.log('[Vote API] Received body:', JSON.stringify(body))
 
-        // Validation
         if (!body.roomId || !body.emoji) {
             throw createError({
                 statusCode: 400,
@@ -35,7 +42,6 @@ export default defineEventHandler(async (event) => {
             })
         }
 
-        // 🛡️ Layer 2: Integrity Checks
         if (userAgent === 'unknown' || userAgent.length < 5) {
             throw createError({
                 statusCode: 400,
@@ -43,36 +49,23 @@ export default defineEventHandler(async (event) => {
             })
         }
 
-        // Validate Fingerprint
-        const clientFingerprint = body.fingerprint
-        if (!clientFingerprint || clientFingerprint.length < 20 || !clientFingerprint.startsWith('data:image')) {
-            throw createError({
-                statusCode: 400,
-                statusMessage: 'Invalid fingerprint'
-            })
-        }
+        assertValidFingerprint(body.fingerprint)
 
-        // 🛡️ Layer 3: Volume Limit (IP Cap)
-        if (!await checkVolumeLimit(clientIP, body.roomId)) {
-            throw createError({
-                statusCode: 429,
-                statusMessage: 'Volume limit reached for this IP'
-            })
-        }
-
-        // Récupérer la room
-        let room: any
-        const roomData = await redis.get(`room:${body.roomId}`)
-
-        if (!roomData) {
+        const room = await getJson<Room>(`room:${body.roomId}`)
+        if (!room) {
             throw createError({
                 statusCode: 404,
                 statusMessage: 'Room not found or expired'
             })
         }
-        room = JSON.parse(roomData as string)
 
-        // Vérifier si la room est verrouillée
+        if (room.type !== 'emoji_vote') {
+            throw createError({
+                statusCode: 400,
+                statusMessage: 'Invalid submission type for this room'
+            })
+        }
+
         if (room.locked) {
             throw createError({
                 statusCode: 403,
@@ -80,24 +73,27 @@ export default defineEventHandler(async (event) => {
             })
         }
 
-        // Vérifier si expirée
-        if (new Date(room.expiresAt) < new Date()) {
+        if (room.expiresAt < Date.now()) {
             throw createError({
                 statusCode: 410,
                 statusMessage: 'Room has expired'
             })
         }
 
-        // Hash du fingerprint pour anonymat avec salt
-        // PRIMARY IDENTITY: Fingerprint!
-        const fingerprintData = `${clientFingerprint}:${body.roomId}`
+        if (!await checkVolumeLimit(clientIP, body.roomId)) {
+            throw createError({
+                statusCode: 429,
+                statusMessage: 'Volume limit reached for this IP'
+            })
+        }
+
+        const fingerprintData = `${body.fingerprint}:${body.roomId}`
         const fingerprintHash = await sha256(fingerprintData)
         const voteKey = `voted:${body.roomId}:${fingerprintHash}`
         const votesKey = `votes:${body.roomId}`
+        const voteTtl = roomTtlSeconds(room)
 
-        // Gestion selon le mode de vote
         if (room.voteMode === 'single_vote') {
-            // Vérifier si déjà voté
             const hasVoted = await redis.exists(voteKey)
             if (hasVoted) {
                 throw createError({
@@ -106,33 +102,26 @@ export default defineEventHandler(async (event) => {
                 })
             }
 
-            // Enregistrer le vote
-            await redis.set(voteKey, body.emoji, { ex: 86400 })
+            await redis.set(voteKey, body.emoji, { ex: voteTtl })
             await redis.hincrby(votesKey, body.emoji, 1)
-
         } else if (room.voteMode === 'allow_revote') {
-            // Récupérer le vote précédent
-            const previousVote = await redis.get(voteKey)
+            const previousVote = await redis.get<string>(voteKey)
 
-            // Opération atomique pour éviter les race conditions
             if (previousVote && previousVote !== body.emoji) {
-                // Décrémenter l'ancien vote et incrémenter le nouveau en une seule opération
-                const currentOld = await redis.hget(votesKey, previousVote as string) || '0'
+                const currentOld = await redis.hget(votesKey, previousVote) || '0'
                 const currentNew = await redis.hget(votesKey, body.emoji) || '0'
 
-                await redis.hset(votesKey, previousVote as string, Math.max(0, parseInt(currentOld, 10) - 1).toString())
+                await redis.hset(votesKey, previousVote, Math.max(0, parseInt(currentOld, 10) - 1).toString())
                 await redis.hset(votesKey, body.emoji, (parseInt(currentNew, 10) + 1).toString())
             } else if (!previousVote) {
                 await redis.hincrby(votesKey, body.emoji, 1)
             }
 
-            // Enregistrer le nouveau vote
-            await redis.set(voteKey, body.emoji, { ex: 86400 })
+            await redis.set(voteKey, body.emoji, { ex: voteTtl })
         }
 
-        // Récupérer les résultats actuels
         const resultsData = await redis.hgetall(votesKey)
-        const results: any = {
+        const results: Record<VoteEmoji, number> = {
             '😍': 0,
             '😊': 0,
             '😐': 0,
@@ -140,10 +129,9 @@ export default defineEventHandler(async (event) => {
             '😢': 0,
         }
 
-        // Convertir les résultats en nombres et s'assurer qu'ils sont positifs
         Object.keys(resultsData).forEach(emoji => {
-            if (VALID_EMOJIS.includes(emoji)) {
-                results[emoji] = Math.max(0, parseInt(resultsData[emoji] || '0', 10))
+            if (VALID_EMOJIS.includes(emoji as VoteEmoji)) {
+                results[emoji as VoteEmoji] = Math.max(0, parseInt(resultsData[emoji] || '0', 10))
             }
         })
 
@@ -151,16 +139,13 @@ export default defineEventHandler(async (event) => {
             success: true,
             currentResults: results
         }
-
     } catch (error: any) {
         console.error('[Vote API Error]', error)
 
-        // Si c'est déjà une erreur HTTP, la relancer
         if (error.statusCode) {
             throw error
         }
 
-        // Debug: retourner le vrai message d'erreur
         throw createError({
             statusCode: 500,
             statusMessage: `Vote failed: ${error instanceof Error ? error.message : String(error)}`

@@ -1,6 +1,15 @@
 {
-  "name": "ephemeral-vote",
+  "name": "ghostpoll",
   "private": true,
+  "description": "Self-hosted anonymous ephemeral polls with zero login and Redis-backed expiry.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thelabofferdi/GhostPoll.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "build": "nuxt build",
@@ -8,29 +17,33 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "redis:help": "node scripts/redis-standalone.js help",
-    "redis:test": "./scripts/test-redis.sh",
-    "redis:create": "node scripts/redis-standalone.js create-test",
-    "redis:simulate": "node scripts/redis-standalone.js simulate",
-    "redis:cleanup": "node scripts/redis-standalone.js cleanup"
+    "redis:help": "tsx scripts/redis-cli.ts help",
+    "redis:test": "tsx scripts/test-redis-connection.ts",
+    "redis:create": "tsx scripts/redis-cli.ts create-test",
+    "redis:votes": "tsx scripts/redis-cli.ts votes",
+    "redis:cleanup": "tsx scripts/redis-cli.ts cleanup"
   },
   "dependencies": {
     "@vueuse/core": "^10.7.0",
     "@vueuse/nuxt": "^10.7.0",
+    "html2canvas": "^1.4.1",
     "nanoid": "^5.1.6",
     "nuxt": "^3.11.0",
+    "pdfkit": "^0.19.1",
     "qrcode": "^1.5.3",
+    "redis": "^6.0.0",
     "vue": "^3.4.0",
-    "vue-router": "^4.2.0",
-    "html2canvas": "^1.4.1"
+    "vue-router": "^4.2.0"
   },
   "devDependencies": {
     "@iconify-json/carbon": "^1.2.18",
     "@iconify-json/simple-icons": "^1.2.67",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@types/node": "^20.10.0",
+    "@types/pdfkit": "^0.17.6",
     "@types/qrcode": "^1.5.5",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vue-tsc": "^3.3.5"
   }
 }

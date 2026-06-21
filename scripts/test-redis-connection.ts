@@ -1,5 +1,5 @@
 // Test Redis connection
-import { redis } from './server/utils/redis'
+import { closeRedis, redis } from '../server/utils/redis'
 
 async function testRedis() {
   try {
@@ -32,7 +32,9 @@ async function testRedis() {
     }
     
   } catch (error) {
-    console.error('❌ Redis error:', error.message)
+    console.error('❌ Redis error:', error instanceof Error ? error.message : String(error))
+  } finally {
+    await closeRedis()
   }
 }
 

@@ -164,9 +164,10 @@ export interface CreateRoomRequest {
 
 export interface CreateRoomResponse {
   roomId: string;
+  adminToken: string;
   publicUrl: string;
   adminUrl: string;
-  qrCodeDataUrl: string;
+  qrCodeDataUrl: string | null;
   expiresAt: number;
   whatsappShareUrl: string;
 }
@@ -191,12 +192,15 @@ export interface SubmitVoteResponse {
 export interface GetResultsResponse {
   roomId: string;
   question?: string;
-  results: VoteResults;
+  type: RoomType;
+  results: VoteResults | PollOption[] | null;
   total: number;
   locked: boolean;
   voteMode: VoteMode;
   expiresAt: number;
-  status: RoomStatus;
+  status: RoomStatus | 'hidden';
+  resultsVisibility: 'public' | 'after_reveal';
+  isRevealed: boolean;
 }
 
 /**
@@ -231,14 +235,11 @@ export interface CloseRoomResponse {
 export interface ExportResultsResponse {
   roomId: string;
   question?: string;
+  type: RoomType;
   createdAt: number;
+  expiresAt: number;
   exportedAt: number;
-  results: {
-    [K in VoteEmoji]: {
-      count: number;
-      percentage: number;
-    };
-  };
+  results: VoteResults | PollOption[];
   total: number;
   locked: boolean;
 }
@@ -334,7 +335,7 @@ export interface AppConfig {
 }
 
 /**
- * Contexte de requête (Cloudflare Workers)
+ * Contexte de requête
  */
 export interface RequestContext {
   /** Adresse IP du client */
@@ -343,7 +344,7 @@ export interface RequestContext {
   /** User-Agent */
   userAgent: string;
 
-  /** Région Cloudflare */
+  /** Région ou zone infra optionnelle */
   region?: string;
 
   /** Timestamp de la requête */

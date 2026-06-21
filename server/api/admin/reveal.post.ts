@@ -1,48 +1,15 @@
-import { redis } from '../../utils/redis'
-import type { Room } from '~/types'
+import { getAdminToken, loadAdminRoom } from '../../utils/admin'
+import { saveRoom } from '../../utils/redis'
 
 export default defineEventHandler(async (event) => {
-    try {
-        const body = await readBody(event)
-        const { roomId, adminKey } = body
+    const body = await readBody(event)
+    const roomId = body.roomId as string | undefined
+    const adminToken = getAdminToken(body)
 
-        if (!roomId || !adminKey) {
-            throw createError({
-                statusCode: 400,
-                statusMessage: 'Missing parameters'
-            })
-        }
+    const room = await loadAdminRoom(roomId || '', adminToken)
 
-        const roomData = await redis.get(`room:${roomId}`)
-        if (!roomData) {
-            throw createError({
-                statusCode: 404,
-                statusMessage: 'Room not found'
-            })
-        }
+    room.isRevealed = true
+    await saveRoom(room)
 
-        const room: Room = JSON.parse(roomData)
-
-        if (room.adminToken !== adminKey) {
-            throw createError({
-                statusCode: 403,
-                statusMessage: 'Invalid admin key'
-            })
-        }
-
-        // Apply Reveal
-        room.isRevealed = true
-
-        // Update Redis (preserve TTL)
-        const ttl = await redis.ttl(`room:${roomId}`)
-        await redis.set(`room:${roomId}`, JSON.stringify(room), { ex: ttl > 0 ? ttl : 86400 })
-
-        return { success: true }
-
-    } catch (e: any) {
-        throw createError({
-            statusCode: 500,
-            statusMessage: e.message
-        })
-    }
+    return { success: true }
 })

@@ -1,309 +1,296 @@
 /**
- * Client Redis (Upstash)
+ * Redis client with an in-memory development mock.
  */
 
-import type { Room, VoteResults, RedisKeys, REDIS_TTL } from '../types';
+import type { RedisKeys, Room } from '~/types'
+import { createClient } from 'redis'
 
-/**
- * Interface du client Redis
- */
 export interface RedisClient {
-    get<T = string>(key: string): Promise<T | null>;
-    set(key: string, value: string, options?: { ex?: number }): Promise<void>;
-    incr(key: string): Promise<number>;
-    del(key: string): Promise<void>;
-    exists(key: string): Promise<boolean>;
-    hget(key: string, field: string): Promise<string | null>;
-    hset(key: string, field: string, value: string): Promise<void>;
-    hincrby(key: string, field: string, increment: number): Promise<number>;
-    hgetall(key: string): Promise<Record<string, string>>;
-    expire(key: string, seconds: number): Promise<boolean>;
+    get<T = string>(key: string): Promise<T | null>
+    set(key: string, value: string, options?: { ex?: number }): Promise<void>
+    incr(key: string): Promise<number>
+    del(key: string): Promise<void>
+    exists(key: string): Promise<boolean>
+    hget(key: string, field: string): Promise<string | null>
+    hset(key: string, field: string, value: string): Promise<void>
+    hincrby(key: string, field: string, increment: number): Promise<number>
+    hgetall(key: string): Promise<Record<string, string>>
+    expire(key: string, seconds: number): Promise<boolean>
+    ttl(key: string): Promise<number>
+    keys(pattern: string): Promise<string[]>
+    zcount(key: string, min: number, max: number): Promise<number>
 }
 
-/**
- * Clés Redis
- */
 export const keys: RedisKeys = {
     room: (roomId: string) => `room:${roomId}`,
     votes: (roomId: string) => `votes:${roomId}`,
     voted: (roomId: string, fingerprint: string) => `voted:${roomId}:${fingerprint}`,
     ratelimit: (roomId: string) => `ratelimit:${roomId}`,
     ratelimitIp: (ip: string) => `ratelimit:ip:${ip}`,
-};
-
-/**
- * Crée un client Redis Upstash
- * 
- * @param url - URL Upstash Redis
- * @param token - Token Upstash
- * @returns Client Redis
- */
-export function createRedisClient(url: string, token: string): RedisClient {
-    // Nettoyage URL
-    const baseUrl = url ? url.replace(/\/$/, '') : '';
-
-    async function execute<T = unknown>(command: string[]): Promise<T> {
-        if (!baseUrl || !token) {
-            if (process.env.NODE_ENV === 'development') {
-                console.error("Redis credentials missing");
-            }
-            throw new Error("Redis configuration missing");
-        }
-
-        // Utiliser POST pour gérer correctement les caractères spéciaux (emojis)
-        const response = await fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(command)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Redis error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.result as T;
-    }
-
-    return {
-        async get<T = string>(key: string): Promise<T | null> {
-            return execute<T>(['GET', key]);
-        },
-
-        async set(key: string, value: string, options?: { ex?: number }): Promise<void> {
-            const command = ['SET', key, value];
-            if (options?.ex) {
-                command.push('EX', options.ex.toString());
-            }
-            await execute(command);
-        },
-
-        async incr(key: string): Promise<number> {
-            return execute<number>(['INCR', key]);
-        },
-
-        async del(key: string): Promise<void> {
-            await execute(['DEL', key]);
-        },
-
-        async exists(key: string): Promise<boolean> {
-            const result = await execute<number>(['EXISTS', key]);
-            return result === 1;
-        },
-
-        async hget(key: string, field: string): Promise<string | null> {
-            return execute<string | null>(['HGET', key, field]);
-        },
-
-        async hset(key: string, field: string, value: string): Promise<void> {
-            await execute(['HSET', key, field, value]);
-        },
-
-        async hincrby(key: string, field: string, increment: number): Promise<number> {
-            return execute<number>(['HINCRBY', key, field, increment.toString()]);
-        },
-
-        async hgetall(key: string): Promise<Record<string, string>> {
-            const result = await execute<string[]>(['HGETALL', key]);
-
-            // Security: Block dangerous keys to prevent prototype pollution
-            const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
-
-            // Convertir le tableau plat [k1, v1, k2, v2] en objet
-            const obj: Record<string, string> = {};
-            if (Array.isArray(result)) {
-                for (let i = 0; i < result.length; i += 2) {
-                    const key = result[i];
-                    // Skip dangerous keys
-                    if (!DANGEROUS_KEYS.includes(key)) {
-                        obj[key] = result[i + 1];
-                    }
-                }
-            }
-
-            return obj;
-        },
-
-        async expire(key: string, seconds: number): Promise<boolean> {
-            const result = await execute<number>(['EXPIRE', key, seconds.toString()]);
-            return result === 1;
-        },
-    };
 }
 
-/**
- * Service Redis pour Ephemeral Vote
- */
-export class RedisService {
-    constructor(private redis: RedisClient) { }
+class NodeRedisClient implements RedisClient {
+    private client: ReturnType<typeof createClient>
+    private connectPromise: Promise<void> | null = null
 
-    /**
-     * Sauvegarde une room
-     */
-    async saveRoom(room: Room): Promise<void> {
-        const key = keys.room(room.id);
-        const ttl = Math.floor((new Date(room.expiresAt).getTime() - Date.now()) / 1000);
-
-        await this.redis.set(
-            key,
-            JSON.stringify(room),
-            { ex: ttl > 0 ? ttl : 60 }
-        );
+    constructor(private readonly url: string) {
+        this.client = createClient({ url: this.url })
+        this.client.on('error', (error) => {
+            console.error('[Redis] Client error', error)
+        })
     }
 
-    /**
-     * Récupère une room
-     */
-    async getRoom(roomId: string): Promise<Room | null> {
-        const key = keys.room(roomId);
-        const data = await this.redis.get<string>(key);
+    private async getClient() {
+        if (!this.client.isOpen) {
+            this.connectPromise ||= this.client.connect().then(() => undefined).finally(() => {
+                this.connectPromise = null
+            })
+            await this.connectPromise
+        }
 
-        if (!data) return null;
-
-        return JSON.parse(data) as Room;
+        return this.client
     }
-
-    /**
-     * Supprime une room
-     */
-    async deleteRoom(roomId: string): Promise<void> {
-        await this.redis.del(keys.room(roomId));
-        await this.redis.del(keys.votes(roomId));
-    }
-
-    /**
-     * Vérifie si une room existe
-     */
-    async roomExists(roomId: string): Promise<boolean> {
-        return this.redis.exists(keys.room(roomId));
-    }
-
-    /**
-     * Verrouille une room
-     */
-    async lockRoom(roomId: string): Promise<void> {
-        const room = await this.getRoom(roomId);
-        if (!room) throw new Error('Room not found');
-
-        room.locked = true;
-        room.status = 'locked';
-        await this.saveRoom(room);
-    }
-}
-
-
-
-// Export singleton instance using runtime config
-// Note: useRuntimeConfig() is available because this file is in server/utils/
-// Mais il faut faire attention à l'import côté serveur
-let _redisInstance: RedisClient | null = null;
-
-// Simple in-memory mock for development
-class MockRedisClient implements RedisClient {
-    private store = new Map<string, { value: string; expiresAt?: number }>();
 
     async get<T = string>(key: string): Promise<T | null> {
-        const item = this.store.get(key);
-        if (!item) return null;
-        if (item.expiresAt && Date.now() > item.expiresAt) {
-            this.store.delete(key);
-            return null;
-        }
-        try {
-            return JSON.parse(item.value) as T;
-        } catch {
-            return item.value as T;
-        }
+        const client = await this.getClient()
+        return await client.get(key) as T | null
     }
 
     async set(key: string, value: string, options?: { ex?: number }): Promise<void> {
-        const expiresAt = options?.ex ? Date.now() + (options.ex * 1000) : undefined;
-        this.store.set(key, { value, expiresAt });
+        const client = await this.getClient()
+        if (options?.ex && options.ex > 0) {
+            await client.set(key, value, { EX: Math.floor(options.ex) })
+            return
+        }
+
+        await client.set(key, value)
     }
 
     async incr(key: string): Promise<number> {
-        const current = await this.get<number>(key) || 0;
-        const newValue = current + 1;
-        await this.set(key, String(newValue));
-        return newValue;
+        const client = await this.getClient()
+        return await client.incr(key)
     }
 
     async del(key: string): Promise<void> {
-        this.store.delete(key);
+        const client = await this.getClient()
+        await client.del(key)
     }
 
     async exists(key: string): Promise<boolean> {
-        const item = this.store.get(key);
-        if (!item) return false;
-        if (item.expiresAt && Date.now() > item.expiresAt) {
-            this.store.delete(key);
-            return false;
-        }
-        return true;
+        const client = await this.getClient()
+        return await client.exists(key) > 0
     }
 
     async hget(key: string, field: string): Promise<string | null> {
-        const data = await this.get<Record<string, string>>(key);
-        return data?.[field] || null;
+        const client = await this.getClient()
+        return await client.hGet(key, field)
     }
 
     async hset(key: string, field: string, value: string): Promise<void> {
-        const data = await this.get<Record<string, string>>(key) || {};
-        data[field] = value;
-        await this.set(key, JSON.stringify(data));
+        const client = await this.getClient()
+        await client.hSet(key, field, value)
     }
 
     async hincrby(key: string, field: string, increment: number): Promise<number> {
-        const data = await this.get<Record<string, string>>(key) || {};
-        const current = parseInt(data[field] || '0', 10);
-        const newValue = current + increment;
-        data[field] = String(newValue);
-        await this.set(key, JSON.stringify(data));
-        return newValue;
+        const client = await this.getClient()
+        return await client.hIncrBy(key, field, increment)
     }
 
     async hgetall(key: string): Promise<Record<string, string>> {
-        return await this.get<Record<string, string>>(key) || {};
+        const client = await this.getClient()
+        return await client.hGetAll(key)
     }
 
     async expire(key: string, seconds: number): Promise<boolean> {
-        const item = this.store.get(key);
-        if (item) {
-            item.expiresAt = Date.now() + (seconds * 1000);
-            this.store.set(key, item);
-            return true;
+        const client = await this.getClient()
+        return await client.expire(key, Math.floor(seconds)) > 0
+    }
+
+    async ttl(key: string): Promise<number> {
+        const client = await this.getClient()
+        return await client.ttl(key)
+    }
+
+    async keys(pattern: string): Promise<string[]> {
+        const client = await this.getClient()
+        return await client.keys(pattern)
+    }
+
+    async zcount(key: string, min: number, max: number): Promise<number> {
+        const client = await this.getClient()
+        return await client.zCount(key, min, max)
+    }
+
+    async close(): Promise<void> {
+        if (this.client.isOpen) {
+            await this.client.quit()
         }
-        return false;
+    }
+}
+
+let _redisInstance: RedisClient | null = null
+
+class MockRedisClient implements RedisClient {
+    private store = new Map<string, { value: string; expiresAt?: number }>()
+
+    private getItem(key: string) {
+        const item = this.store.get(key)
+        if (!item) return null
+        if (item.expiresAt && Date.now() > item.expiresAt) {
+            this.store.delete(key)
+            return null
+        }
+        return item
+    }
+
+    private parseHash(key: string): Record<string, string> {
+        const item = this.getItem(key)
+        if (!item) return {}
+        try {
+            const parsed = JSON.parse(item.value)
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+        } catch {
+            return {}
+        }
+    }
+
+    async get<T = string>(key: string): Promise<T | null> {
+        const item = this.getItem(key)
+        return item ? (item.value as T) : null
+    }
+
+    async set(key: string, value: string, options?: { ex?: number }): Promise<void> {
+        const expiresAt = options?.ex && options.ex > 0 ? Date.now() + (Math.floor(options.ex) * 1000) : undefined
+        this.store.set(key, { value, expiresAt })
+    }
+
+    async incr(key: string): Promise<number> {
+        const current = parseInt((await this.get<string>(key)) || '0', 10) || 0
+        const newValue = current + 1
+        const ttl = await this.ttl(key)
+        await this.set(key, String(newValue), ttl > 0 ? { ex: ttl } : undefined)
+        return newValue
+    }
+
+    async del(key: string): Promise<void> {
+        this.store.delete(key)
+    }
+
+    async exists(key: string): Promise<boolean> {
+        return this.getItem(key) !== null
+    }
+
+    async hget(key: string, field: string): Promise<string | null> {
+        const data = this.parseHash(key)
+        return data[field] ?? null
+    }
+
+    async hset(key: string, field: string, value: string): Promise<void> {
+        const item = this.getItem(key)
+        const data = this.parseHash(key)
+        data[field] = value
+        this.store.set(key, { value: JSON.stringify(data), expiresAt: item?.expiresAt })
+    }
+
+    async hincrby(key: string, field: string, increment: number): Promise<number> {
+        const item = this.getItem(key)
+        const data = this.parseHash(key)
+        const newValue = (parseInt(data[field] || '0', 10) || 0) + increment
+        data[field] = String(newValue)
+        this.store.set(key, { value: JSON.stringify(data), expiresAt: item?.expiresAt })
+        return newValue
+    }
+
+    async hgetall(key: string): Promise<Record<string, string>> {
+        return this.parseHash(key)
+    }
+
+    async expire(key: string, seconds: number): Promise<boolean> {
+        const item = this.getItem(key)
+        if (!item) return false
+        item.expiresAt = Date.now() + (Math.floor(seconds) * 1000)
+        this.store.set(key, item)
+        return true
+    }
+
+    async ttl(key: string): Promise<number> {
+        const item = this.getItem(key)
+        if (!item) return -2
+        if (!item.expiresAt) return -1
+        return Math.max(0, Math.ceil((item.expiresAt - Date.now()) / 1000))
+    }
+
+    async keys(pattern: string): Promise<string[]> {
+        const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+        const regex = new RegExp(`^${escaped}$`)
+        return Array.from(this.store.keys()).filter((key) => this.getItem(key) && regex.test(key))
+    }
+
+    async zcount(): Promise<number> {
+        return 0
     }
 }
 
 export const redis = new Proxy({} as RedisClient, {
-    get(target, prop) {
+    get(_target, prop) {
         if (!_redisInstance) {
-            const config = useRuntimeConfig()
-            const url = config.upstashRedisUrl;
-            const token = config.upstashRedisToken;
+            const config = getRedisConfig()
 
-            // Security: Never log credentials - only log connection status
-            const hasCredentials = Boolean(url && token && url !== 'mock' && token !== 'mock');
-
-            // Use mock if credentials are not configured or are mock values
-            if (!hasCredentials) {
-                if (process.env.NODE_ENV === 'development') {
-                    console.warn('[Redis] Using in-memory mock (no Upstash credentials configured)');
-                }
-                _redisInstance = new MockRedisClient();
+            if (config.redisUrl && config.redisUrl !== 'mock') {
+                _redisInstance = new NodeRedisClient(config.redisUrl)
             } else {
-                _redisInstance = createRedisClient(url, token);
+                if (process.env.NODE_ENV === 'development') {
+                    console.warn('[Redis] Using in-memory mock (no Redis credentials configured)')
+                }
+                _redisInstance = new MockRedisClient()
             }
         }
-        // Properly typed Proxy access
-        return (_redisInstance as any)[prop];
+
+        return (_redisInstance as any)[prop]
     }
 })
 
-// Ajout du support pipeline manquant dans l'interface RedisClient pour api/rooms.post.ts
-// En fait, je vais adapter api/rooms.post.ts pour éviter 'pipeline' car mon client léger ne l'a pas.
+function getRedisConfig() {
+    let runtimeConfig: any = {}
+
+    try {
+        if (typeof useRuntimeConfig === 'function') {
+            runtimeConfig = useRuntimeConfig()
+        }
+    } catch {
+        runtimeConfig = {}
+    }
+
+    return {
+        redisUrl: runtimeConfig.redisUrl || process.env.REDIS_URL || '',
+    }
+}
+
+export async function getJson<T>(key: string): Promise<T | null> {
+    const data = await redis.get<string>(key)
+    return data ? JSON.parse(data) as T : null
+}
+
+export async function setJson(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+    await redis.set(key, JSON.stringify(value), ttlSeconds && ttlSeconds > 0 ? { ex: ttlSeconds } : undefined)
+}
+
+export function roomTtlSeconds(room: Pick<Room, 'expiresAt'>, fallback = 60): number {
+    const ttl = Math.floor((room.expiresAt - Date.now()) / 1000)
+    return ttl > 0 ? ttl : fallback
+}
+
+export async function saveRoom(room: Room): Promise<void> {
+    await setJson(keys.room(room.id), room, roomTtlSeconds(room))
+}
+
+export async function deleteByPattern(pattern: string): Promise<void> {
+    const matchedKeys = await redis.keys(pattern)
+    await Promise.all(matchedKeys.map((key) => redis.del(key)))
+}
+
+export async function closeRedis(): Promise<void> {
+    const client = _redisInstance as (RedisClient & { close?: () => Promise<void> }) | null
+    await client?.close?.()
+    _redisInstance = null
+}

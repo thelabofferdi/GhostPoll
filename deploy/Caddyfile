@@ -1,0 +1,16 @@
+{$APP_DOMAIN} {
+  encode zstd gzip
+
+  reverse_proxy ghostpoll:3000
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options DENY
+  }
+
+  log {
+    output stdout
+    format console
+  }
+}

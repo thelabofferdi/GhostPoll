@@ -5,7 +5,7 @@ function randomString(length: number): string {
     let result = '';
 
     // Security: Only use cryptographically secure random generation
-    // Cloudflare Workers and modern browsers support crypto.getRandomValues
+    // Node and modern browsers support crypto.getRandomValues.
     if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
         throw new Error('Cryptographically secure random generation not available');
     }

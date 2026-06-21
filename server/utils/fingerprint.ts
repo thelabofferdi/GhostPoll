@@ -1,10 +1,11 @@
-import { createHash } from 'crypto'
 import type { Fingerprint } from '~/types'
+import { sha256 } from './crypto'
 
 /**
- * Génère un fingerprint avancé du navigateur
+ * Génère un fingerprint avancé du navigateur.
+ * Uses Web Crypto through ./crypto for runtime portability.
  */
-export function generateFingerprint(data: {
+export async function generateFingerprint(data: {
   userAgent: string
   ip: string
   canvas?: string
@@ -12,7 +13,7 @@ export function generateFingerprint(data: {
   language?: string
   screen?: string
   fonts?: string[]
-}): Fingerprint {
+}): Promise<Fingerprint> {
   const components = [
     data.userAgent,
     data.ip,
@@ -23,10 +24,7 @@ export function generateFingerprint(data: {
     (data.fonts || []).sort().join(',')
   ]
 
-  const hash = createHash('sha256')
-    .update(components.join('|'))
-    .digest('hex')
-    .substring(0, 16)
+  const hash = (await sha256(components.join('|'))).substring(0, 16)
 
   return {
     hash,
@@ -40,24 +38,19 @@ export function generateFingerprint(data: {
 }
 
 /**
- * Valide un fingerprint
+ * Valide un fingerprint.
  */
 export function validateFingerprint(fingerprint: string): boolean {
   return /^[a-f0-9]{16}$/.test(fingerprint)
 }
 
 /**
- * Détecte si un fingerprint semble suspect (bot, automation)
+ * Détecte si un fingerprint semble suspect (bot, automation).
  */
 export function isSuspiciousFingerprint(data: Partial<Fingerprint>): boolean {
-  // Pas de canvas fingerprint = suspect
   if (!data.canvas) return true
-  
-  // Timezone manquante = suspect
   if (!data.timezone) return true
-  
-  // Très peu de fonts = suspect
   if (!data.fonts || data.fonts.length < 5) return true
-  
+
   return false
 }

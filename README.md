@@ -1,176 +1,186 @@
-# � GhostPoll
+# GhostPoll
 
-**Ephemeral, anonymous polls that disappear into the void.**
+[![CI](https://github.com/thelabofferdi/GhostPoll/actions/workflows/ci.yml/badge.svg)](https://github.com/thelabofferdi/GhostPoll/actions/workflows/ci.yml)
 
-GhostPoll is a privacy-first polling application designed for Indie Hackers who need quick, honest feedback without the baggage of permanent data storage. Create polls that auto-delete after 24 hours, ensuring your data vanishes without a trace.
+GhostPoll is a self-hosted, privacy-first polling app for quick anonymous feedback. Create a poll, share a link or QR code, collect votes, export results, and let the data expire automatically.
 
-![GhostPoll Banner](./public/assets/hero-mascot.gif)
+No login. No signup. No user accounts.
 
-## ✨ Features
+![GhostPoll preview](./public/assets/hero-mascot.gif)
 
-- 🔒 **Privacy-First**: No tracking, no signup required
-- ⏱️ **Ephemeral**: Polls auto-delete after 24h (or custom duration)
-- 😊 **Emoji Voting**: Quick feedback with 5 emoji reactions
-- 📊 **Multiple Choice**: Custom options for group decisions
-- � **Bilingual**: Full support for English and French
-- 🎨 **Beautiful UI**: Modern, responsive design with smooth animations
-- 🚀 **Fast**: Built with Nuxt 3 and deployed on Cloudflare Pages
-- � **Ghost Reveal**: Hide results until you're ready to reveal them
+## What It Does
 
-## 🚀 Quick Start
+- Create anonymous ephemeral polls in seconds.
+- Share public voting links and QR codes.
+- Manage polls through a secret admin link.
+- Support emoji votes and multiple-choice polls.
+- Hide results until the admin reveals them.
+- Allow either one vote per voter or revoting.
+- Export results as JSON, CSV, PDF, or PNG image.
+- Run fully self-hosted on a VPS with Docker, Redis, and Caddy.
 
-### Prerequisites
+## Product Flow
 
-- Node.js 18+ or compatible runtime
-- pnpm (recommended) or npm
-- Upstash Redis account (free tier available)
+1. The host creates a poll from the homepage.
+2. GhostPoll generates a public voting link, a QR code, and a secret admin link.
+3. Participants vote anonymously from `/vote/:roomId`.
+4. The admin monitors results from `/admin?id=:roomId&key=:adminToken`.
+5. Results can be locked, revealed, hidden, extended, exported, duplicated, or closed.
+6. Redis TTL automatically removes poll data when the room expires.
 
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/yourusername/ghostpoll.git
-cd ghostpoll
-```
-
-2. **Install dependencies**
-```bash
-pnpm install
-# or
-npm install
-```
-
-3. **Configure environment variables**
-```bash
-cp .env.example .env
-cp wrangler.toml.example wrangler.toml
-```
-
-Edit `.env` and `wrangler.toml` with your Upstash Redis credentials:
-- Get your credentials at [Upstash Console](https://console.upstash.com/)
-
-4. **Run development server**
-```bash
-pnpm dev
-# or
-npm run dev
-```
-
-Visit `http://localhost:3000` 🎉
-
-## 🏗️ Tech Stack
-
-- **Framework**: [Nuxt 3](https://nuxt.com/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Database**: [Upstash Redis](https://upstash.io/)
-- **Deployment**: [Cloudflare Pages](https://pages.cloudflare.com/)
-- **Language**: TypeScript
-- **Icons**: Material Icons
-
-## 📦 Project Structure
-
-```
-ghostpoll/
-├── assets/          # Static assets (images, GIFs)
-├── components/      # Vue components
-├── composables/     # Vue composables (useLanguage, useApi, etc.)
-├── pages/           # Application pages
-│   ├── index.vue    # Homepage
-│   ├── vote/        # Voting pages
-│   ├── admin/       # Admin dashboard
-│   └── created.vue  # Poll creation success
-├── server/          # Server-side code
-│   ├── api/         # API endpoints
-│   └── utils/       # Server utilities
-├── types/           # TypeScript type definitions
-└── public/          # Public static files
-```
-
-## 🌍 Deployment
-
-### Cloudflare Pages
-
-1. **Build the project**
-```bash
-pnpm build
-```
-
-2. **Deploy with Wrangler**
-```bash
-npx wrangler pages deploy .output/public
-```
-
-3. **Set environment variables** in Cloudflare Dashboard:
-   - `UPSTASH_REDIS_URL`
-   - `UPSTASH_REDIS_TOKEN`
-
-## 🎨 Features in Detail
+## Features
 
 ### Poll Types
 
-1. **Emoji Vote**: Quick sentiment analysis with 5 emoji reactions
-2. **Multiple Choice**: Custom options for detailed feedback
+- Emoji vote: five reactions for fast sentiment feedback.
+- Multiple choice: custom options for structured decisions.
 
-### Vote Modes
+### Voting Modes
 
-- **Single Vote**: One person = one vote (recommended)
-- **Allow Revote**: Participants can change their mind
+- Single vote: one vote per browser fingerprint.
+- Allow revote: participants can change their choice.
 
-### Visibility Options
+### Result Visibility
 
-- **Live Results**: Everyone sees results immediately
-- **Ghost Reveal 👻**: Results hidden until you reveal them (NEW!)
+- Public results: everyone can see live results.
+- Reveal mode: public results stay hidden until the admin reveals them.
 
-### Durations
+### Admin Controls
 
-- 1 hour
-- 6 hours
-- 12 hours
-- 24 hours (default)
-- 48 hours
+- View live results.
+- Lock and unlock voting.
+- Reveal, hide, or publish results.
+- Extend poll duration.
+- Duplicate a poll without copying votes.
+- Close and delete a poll immediately.
+- Export results as JSON, CSV, PDF, or branded PNG image.
 
-## 🔐 Security & Privacy
+## Privacy Model
 
-- No user tracking or analytics
-- No personal data collection
-- Anonymous voting with fingerprinting
-- Automatic data deletion
-- Redis-based ephemeral storage
+GhostPoll is built around zero-login operation.
 
-## 🌐 Internationalization
+- No accounts, emails, passwords, or user profiles.
+- Admin access is controlled by a secret capability link.
+- Voter duplicate protection uses a room-scoped hashed fingerprint.
+- Raw fingerprints are not stored.
+- Poll data is temporary and expires through Redis TTL.
+- Admins can delete active poll data manually with the close action.
 
-GhostPoll supports:
-- 🇬🇧 English
-- 🇫🇷 French
+See [docs/PRIVACY.md](./docs/PRIVACY.md) for details.
 
-Toggle between languages using the button in the top-right corner.
+## Tech Stack
 
-## 🤝 Contributing
+- Nuxt 3
+- Vue 3
+- TypeScript
+- Tailwind CSS
+- Redis
+- Docker Compose
+- Caddy HTTPS reverse proxy
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Local Development
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Requirements
 
-## 📝 License
+- Node.js 22 or a compatible modern Node runtime
+- npm
 
-This project is open source and available under the [MIT License](LICENSE).
+### Install
 
-## 🙏 Acknowledgments
+```bash
+npm install
+cp .env.example .env
+```
 
-- Inspired by the need for ephemeral, privacy-first feedback tools
-- Built for the Indie Hacker community
-- Mascot design: Custom GhostPoll ghost 👻
+By default, local development uses the in-memory Redis mock when `REDIS_URL` is empty.
 
-## 📧 Contact
+### Run
 
-For questions or feedback, please open an issue on GitHub.
+```bash
+npm run dev
+```
 
----
+Open `http://localhost:3000`.
 
-**Made with 👻 by an Fernandez KOUAGOU**
+### Use A Real Local Redis
 
-*Remember: All polls disappear into the void. No traces left. It's ephemeral.*
+```bash
+podman run -d --name ghostpoll-redis \
+  -p 127.0.0.1:6379:6379 \
+  -e REDIS_PASSWORD=localpassword \
+  docker.io/library/redis:7-alpine \
+  sh -c 'redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"'
+
+REDIS_URL=redis://:localpassword@127.0.0.1:6379 npm run dev
+```
+
+Docker can be used instead of Podman with the same image and command.
+
+## Quality Checks
+
+```bash
+npx nuxi typecheck
+npm run build
+npm run redis:test
+```
+
+`npm run redis:test` uses the configured `REDIS_URL`; when it is empty, it uses the in-memory mock.
+
+## Self-Hosted Deployment
+
+Production is designed for a VPS with Docker Compose.
+
+```bash
+cp .env.production.example .env
+openssl rand -hex 32
+docker compose up -d --build
+```
+
+Set the generated Redis password in `.env` before starting the stack.
+
+```dotenv
+APP_DOMAIN=ghostpoll.example.com
+BASE_URL=https://ghostpoll.example.com
+REDIS_PASSWORD=replace-with-generated-value
+```
+
+Healthcheck:
+
+```bash
+curl -fsS https://ghostpoll.example.com/api/health
+```
+
+Full deployment notes are in [docs/VPS_DEPLOYMENT.md](./docs/VPS_DEPLOYMENT.md).
+
+## Environment Variables
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `BASE_URL` | Production | Public base URL used for generated links. |
+| `NUXT_PUBLIC_BASE_URL` | Optional | Public runtime base URL override. Docker Compose maps it from `BASE_URL`. |
+| `REDIS_URL` | Production | Redis connection string, for example `redis://:password@redis:6379`. |
+| `APP_DOMAIN` | Docker stack | Domain served by Caddy. |
+| `REDIS_PASSWORD` | Docker stack | Redis password used by Compose. |
+
+## Project Structure
+
+```text
+components/        Vue result components
+composables/       Client composables
+deploy/            Caddy configuration
+docs/              Deployment and privacy docs
+pages/             Nuxt pages
+public/assets/     Public images and branding assets
+scripts/           Redis utility scripts
+server/api/        Nitro API routes
+server/utils/      Server utilities
+types/             Shared TypeScript types
+```
+
+## Repository Status
+
+GhostPoll is currently optimized for self-hosted VPS deployment. The app does not depend on managed serverless Redis or edge-worker limitations.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).

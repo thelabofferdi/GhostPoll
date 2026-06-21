@@ -1,5 +1,4 @@
-// import QRCode from 'qrcode'
-// Temporarily disabled for Cloudflare Workers compatibility
+import QRCode from 'qrcode'
 
 interface QRCustomization {
   logo?: string
@@ -9,15 +8,25 @@ interface QRCustomization {
 
 /**
  * Génère un QR code personnalisé
- * TEMPORARILY DISABLED - Returns null for Cloudflare Workers compatibility
  */
 export async function generateCustomQR(
   url: string,
   customization?: QRCustomization
 ): Promise<string | null> {
-  // QR code generation temporarily disabled for Cloudflare Workers
-  // The library uses Node.js util.inherits which is incompatible
-  return null
+  return QRCode.toDataURL(url, {
+    errorCorrectionLevel: 'H',
+    margin: 2,
+    scale: 8,
+    color: {
+      dark: normalizeQrColor(customization?.primaryColor, '#111827'),
+      light: normalizeQrColor(customization?.backgroundColor, '#ffffff')
+    }
+  })
+}
+
+function normalizeQrColor(color: string | undefined, fallback: string): string {
+  if (!color) return fallback
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback
 }
 
 /**

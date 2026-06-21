@@ -12,7 +12,7 @@ export async function sha256(input: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
 
-    // Check if crypto is available (Cloudflare Workers / Modern Browsers)
+    // Check if Web Crypto is available in the current runtime.
     if (typeof crypto !== 'undefined' && crypto.subtle) {
         try {
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -39,7 +39,7 @@ export async function sha256(input: string): Promise<string> {
  * 
  * @example
  * ```ts
- * const fp = await generateFingerprint(
+ * const fp = await generateRequestFingerprint(
  *   '192.168.1.1',
  *   'Mozilla/5.0...',
  *   'a1b2c3d4'
@@ -47,7 +47,7 @@ export async function sha256(input: string): Promise<string> {
  * // "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
  * ```
  */
-export async function generateFingerprint(
+export async function generateRequestFingerprint(
     ip: string,
     userAgent: string,
     canvasFp?: string

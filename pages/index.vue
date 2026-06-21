@@ -433,6 +433,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '~/composables/useApi'
 import { useLanguage } from '~/composables/useLanguage'
+import type { CreateRoomResponse } from '~/types'
 
 const router = useRouter()
 const { t, language } = useLanguage()
@@ -467,7 +468,7 @@ const scrollToCreate = () => {
 const isLoading = ref(false)
 const selectedType = ref<'emoji_vote' | 'poll'>('emoji_vote')
 const question = ref('')
-const voteMode = ref<'single_vote' | 'allow_revote' | 'multiple_votes'>('single_vote')
+const voteMode = ref<'single_vote' | 'allow_revote'>('single_vote')
 const resultsVisibility = ref<'public' | 'after_reveal'>('public') // Added
 const duration = ref<'1h' | '6h' | '12h' | '24h' | '48h'>('24h')
 const pollOptions = ref(['', ''])
@@ -566,7 +567,7 @@ const createRoom = async () => {
     const response = await apiCall('/api/rooms', {
       method: 'POST',
       body
-    })
+    }) as CreateRoomResponse
     
     await router.push({
       path: '/created',

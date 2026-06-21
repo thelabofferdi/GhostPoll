@@ -24,40 +24,18 @@ export default defineNuxtConfig({
                 }
             },
         },
-        // Cloudflare Workers preset
-        preset: 'cloudflare-pages',
-        // Enable Node.js compatibility
-        cloudflare: {
-            pages: {
-                routes: {
-                    exclude: ['/images/*']
-                }
-            }
-        },
-        // Compatibility flags for Cloudflare Workers
-        compatibilityFlags: ['nodejs_compat'],
+        preset: process.env.NITRO_PRESET || 'node-server',
         // Mark client-only dependencies as external
         externals: {
             inline: ['html2canvas']
         },
-        // Force single file worker
-        rollupConfig: {
-            output: {
-                inlineDynamicImports: true,
-            }
-        },
-        // Fix for relative URLs in Cloudflare Pages
-        experimental: {
-            wasm: true
-        }
     },
 
     // Runtime config
     runtimeConfig: {
-        upstashRedisUrl: process.env.UPSTASH_REDIS_URL || '',
-        upstashRedisToken: process.env.UPSTASH_REDIS_TOKEN || '',
+        redisUrl: process.env.REDIS_URL || '',
         public: {
-            baseUrl: process.env.BASE_URL || 'https://ghostpoll.pages.dev',
+            baseUrl: process.env.NUXT_PUBLIC_BASE_URL || process.env.BASE_URL || 'http://localhost:3000',
         }
     },
 

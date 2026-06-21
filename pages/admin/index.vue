@@ -18,6 +18,15 @@ const results = ref<any>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const actionLoading = ref(false)
+const extensionDuration = ref<'1h' | '6h' | '12h' | '24h' | '48h'>('1h')
+
+const extensionOptions = [
+  { value: '1h', label: '+1h' },
+  { value: '6h', label: '+6h' },
+  { value: '12h', label: '+12h' },
+  { value: '24h', label: '+24h' },
+  { value: '48h', label: '+48h' }
+] as const
 
 // Emojis
 const emojis = [
@@ -58,8 +67,8 @@ async function loadData() {
   }
   
   try {
-    const data = await $fetch(`/api/results/${roomId.value}`)
-    
+    const data = await $fetch<any>(`/api/results/${roomId.value}?key=${encodeURIComponent(adminKey.value)}`)
+
     if (data) {
       room.value = data
       results.value = data.results
@@ -226,6 +235,70 @@ async function lockRoom() {
   }
 }
 
+async function unlockRoom() {
+  if (!confirm('Réouvrir cette room aux votes ?')) return
+
+  actionLoading.value = true
+  try {
+    await $fetch('/api/admin/unlock', {
+      method: 'POST',
+      body: {
+        roomId: roomId.value,
+        adminKey: adminKey.value
+      }
+    })
+
+    alert('Room déverrouillée !')
+    await loadData()
+  } catch (e) {
+    alert('Erreur lors du déverrouillage')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function extendRoom() {
+  actionLoading.value = true
+  try {
+    await $fetch('/api/admin/extend', {
+      method: 'POST',
+      body: {
+        roomId: roomId.value,
+        adminKey: adminKey.value,
+        extension: extensionDuration.value
+      }
+    })
+
+    alert('Durée prolongée !')
+    await loadData()
+  } catch (e) {
+    alert('Erreur lors de la prolongation')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function setResultsVisibility(resultsVisibility: 'public' | 'after_reveal', isRevealed = false) {
+  actionLoading.value = true
+  try {
+    await $fetch('/api/admin/visibility', {
+      method: 'POST',
+      body: {
+        roomId: roomId.value,
+        adminKey: adminKey.value,
+        resultsVisibility,
+        isRevealed
+      }
+    })
+
+    await loadData()
+  } catch (e) {
+    alert('Erreur lors du changement de visibilité')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 async function closeRoom() {
   if (!confirm('Fermer définitivement cette room ? Cette action est irréversible !')) return
   
@@ -270,6 +343,56 @@ async function revealResults() {
   }
 }
 
+async function duplicateRoom() {
+  if (!confirm('Créer une nouvelle room avec les mêmes paramètres, sans les votes ?')) return
+
+  actionLoading.value = true
+  try {
+    const response = await $fetch<any>('/api/admin/duplicate', {
+      method: 'POST',
+      body: {
+        roomId: roomId.value,
+        adminKey: adminKey.value,
+        duration: room.value?.duration || '24h'
+      }
+    })
+
+    await navigateTo({
+      path: '/created',
+      query: {
+        id: response.roomId,
+        token: response.adminToken
+      }
+    })
+  } catch (e) {
+    alert('Erreur lors de la duplication')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function downloadExport(format: 'json' | 'csv' | 'pdf') {
+  actionLoading.value = true
+  try {
+    const response = await fetch(`/api/admin/export/${roomId.value}?token=${encodeURIComponent(adminKey.value)}&format=${format}`)
+    if (!response.ok) throw new Error('Export failed')
+
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `ghostpoll-results-${roomId.value}.${format}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Erreur lors de l’export')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 
 
 
@@ -278,7 +401,8 @@ async function shareAsImage() {
     actionLoading.value = true
     try {
         // Load html2canvas from CDN if not already loaded
-        if (typeof window.html2canvas === 'undefined') {
+        const browserWindow = window as Window & typeof globalThis & { html2canvas?: any }
+        if (typeof browserWindow.html2canvas === 'undefined') {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script')
                 script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
@@ -304,8 +428,7 @@ async function shareAsImage() {
         // Wait for images to load
         await new Promise(resolve => setTimeout(resolve, 300))
         
-        // @ts-ignore - html2canvas is loaded from CDN
-        const canvas = await window.html2canvas(element, {
+        const canvas = await browserWindow.html2canvas(element, {
             backgroundColor: '#0B1121',
             scale: 2, // High resolution
             logging: false,
@@ -323,7 +446,7 @@ async function shareAsImage() {
         element.style.top = ''
 
         // Convert to blob and download
-        canvas.toBlob((blob) => {
+        canvas.toBlob((blob: Blob | null) => {
             if (!blob) {
                 alert('Failed to generate image')
                 return
@@ -368,7 +491,7 @@ onMounted(() => {
     
     try {
       // Add timestamp to prevent caching
-      const data = await $fetch(`/api/results/${roomId.value}?t=${Date.now()}`)
+      const data = await $fetch<any>(`/api/results/${roomId.value}?key=${encodeURIComponent(adminKey.value)}&t=${Date.now()}`)
       if (data) {
         // Force update reference if data changed
         if (JSON.stringify(results.value) !== JSON.stringify(data.results)) {
@@ -598,16 +721,91 @@ watch(() => route.path, () => {
             <h3 class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">{{ t('actions') }}</h3>
             
             <div class="space-y-3">
-              <!-- REVEAL BUTTON (Special) -->
-              <button
-                v-if="room?.resultsVisibility === 'after_reveal' && !room?.isRevealed"
-                @click="revealResults"
-                :disabled="actionLoading"
-                class="w-full bg-purple-600 hover:bg-purple-700 border border-purple-500/50 hover:border-purple-400 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] shadow-[0_0_20px_rgba(147,51,234,0.3)] mb-4"
-              >
-                <div class="text-xl">👻</div>
-                <span class="font-bold text-white uppercase tracking-wider">REVEAL RESULTS</span>
-              </button>
+              <div class="space-y-2 pb-3 border-b border-white/10">
+                <div class="text-xs font-bold text-text-secondary uppercase tracking-wider">{{ t('visibility_controls') }}</div>
+                <button
+                  v-if="room?.resultsVisibility === 'after_reveal' && !room?.isRevealed"
+                  @click="revealResults"
+                  :disabled="actionLoading"
+                  class="w-full bg-purple-600 hover:bg-purple-700 border border-purple-500/50 hover:border-purple-400 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] shadow-[0_0_20px_rgba(147,51,234,0.3)]"
+                >
+                  <div class="text-xl">👻</div>
+                  <span class="font-bold text-white uppercase tracking-wider">{{ t('reveal') }}</span>
+                </button>
+                <button
+                  v-if="room?.resultsVisibility === 'after_reveal' && room?.isRevealed"
+                  @click="setResultsVisibility('after_reveal', false)"
+                  :disabled="actionLoading"
+                  class="w-full bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500/50 text-purple-300 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <i class="i-carbon-view-off"></i>
+                  <span>{{ t('hide_results_admin') }}</span>
+                </button>
+                <button
+                  v-if="room?.resultsVisibility !== 'public'"
+                  @click="setResultsVisibility('public', true)"
+                  :disabled="actionLoading"
+                  class="w-full bg-green-600/10 hover:bg-green-600/20 border border-green-500/30 hover:border-green-500/50 text-green-400 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <i class="i-carbon-view"></i>
+                  <span>{{ t('make_results_public') }}</span>
+                </button>
+                <button
+                  v-if="room?.resultsVisibility === 'public'"
+                  @click="setResultsVisibility('after_reveal', false)"
+                  :disabled="actionLoading"
+                  class="w-full bg-bg hover:bg-white/5 border border-white/10 hover:border-purple-500/30 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <i class="i-carbon-view-off"></i>
+                  <span>{{ t('hide_results_admin') }}</span>
+                </button>
+              </div>
+
+              <div class="space-y-2 pb-3 border-b border-white/10">
+                <div class="text-xs font-bold text-text-secondary uppercase tracking-wider">{{ t('extend_room') }}</div>
+                <div class="flex gap-2">
+                  <select
+                    v-model="extensionDuration"
+                    class="flex-1 bg-bg border border-white/10 rounded-xl px-3 py-3 text-sm text-text focus:outline-none focus:border-primary/50"
+                  >
+                    <option v-for="option in extensionOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <button
+                    @click="extendRoom"
+                    :disabled="actionLoading"
+                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {{ t('extend_by') }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 pb-3 border-b border-white/10">
+                <button
+                  @click="downloadExport('json')"
+                  :disabled="actionLoading"
+                  class="bg-bg hover:bg-white/5 border border-white/10 rounded-xl py-3 px-2 text-xs transition-colors disabled:opacity-50"
+                >
+                  {{ t('export_json') }}
+                </button>
+                <button
+                  @click="downloadExport('csv')"
+                  :disabled="actionLoading"
+                  class="bg-bg hover:bg-white/5 border border-white/10 rounded-xl py-3 px-2 text-xs transition-colors disabled:opacity-50"
+                >
+                  {{ t('export_csv') }}
+                </button>
+                <button
+                  @click="downloadExport('pdf')"
+                  :disabled="actionLoading"
+                  class="bg-bg hover:bg-white/5 border border-white/10 rounded-xl py-3 px-2 text-xs transition-colors disabled:opacity-50"
+                >
+                  {{ t('export_pdf') }}
+                </button>
+              </div>
+
               <button
                 @click="shareAsImage"
                 class="w-full bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 text-blue-400 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors"
@@ -617,8 +815,6 @@ watch(() => route.path, () => {
                 <span>{{ t('share_image') }} 📸</span>
               </button>
 
-
-              
               <button
                 v-if="!room?.locked"
                 @click="lockRoom"
@@ -627,6 +823,24 @@ watch(() => route.path, () => {
               >
                 <i class="i-carbon-locked"></i>
                 <span>{{ t('lock') }}</span>
+              </button>
+              <button
+                v-else
+                @click="unlockRoom"
+                :disabled="actionLoading"
+                class="w-full bg-bg hover:bg-white/5 border border-white/10 hover:border-green-500/30 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <i class="i-carbon-unlocked"></i>
+                <span>{{ t('unlock') }}</span>
+              </button>
+
+              <button
+                @click="duplicateRoom"
+                :disabled="actionLoading"
+                class="w-full bg-bg hover:bg-white/5 border border-white/10 hover:border-blue-500/30 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <i class="i-carbon-copy"></i>
+                <span>{{ t('duplicate_poll') }}</span>
               </button>
               
               <button

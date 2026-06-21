@@ -27,7 +27,7 @@ const copiedAdmin = ref(false)
 const copiedPublic = ref(false)
 
 const qrCodeUrl = computed(() => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=20&data=${encodeURIComponent(publicLink.value)}`
+    return `/api/qrcode?data=${encodeURIComponent(publicLink.value)}`
 })
 
 async function shareQrCode() {

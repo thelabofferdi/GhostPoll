@@ -1,4 +1,4 @@
-import { redis } from './server/utils/redis'
+import { closeRedis, redis } from '../server/utils/redis'
 
 const args = process.argv.slice(2)
 const command = args[0]
@@ -54,17 +54,29 @@ async function main() {
 
       case 'create-test':
         const testRoomId = args[1] || 'TEST123'
+        const adminToken = 'testkey123'
+        const now = Date.now()
         const testRoomData = {
           id: testRoomId,
+          adminToken,
+          secretKey: 'testsecret123',
           question: 'How was this test?',
+          type: 'emoji_vote',
           voteMode: 'single_vote',
+          duration: '24h',
           status: 'active',
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          locked: false
+          createdAt: now,
+          expiresAt: now + 24 * 60 * 60 * 1000,
+          locked: false,
+          analytics: {
+            totalParticipants: 0,
+            peakActivity: 0,
+            lastActivity: now
+          },
+          resultsVisibility: 'public',
+          isRevealed: false
         }
         await redis.set(`room:${testRoomId}`, JSON.stringify(testRoomData), { ex: 86400 })
-        await redis.set(`admin:${testRoomId}`, 'testkey123', { ex: 86400 })
         
         // Initialize votes
         const emojis = ['😍', '😊', '😐', '😕', '😢']
@@ -73,9 +85,9 @@ async function main() {
         }
         
         console.log(`✅ Created test room: ${testRoomId}`)
-        console.log(`🔑 Admin key: testkey123`)
-        console.log(`🗳️  Vote URL: http://localhost:3000/vote?id=${testRoomId}`)
-        console.log(`⚙️  Admin URL: http://localhost:3000/admin?id=${testRoomId}&key=testkey123`)
+        console.log(`🔑 Admin key: ${adminToken}`)
+        console.log(`🗳️  Vote URL: http://localhost:3000/vote/${testRoomId}`)
+        console.log(`⚙️  Admin URL: http://localhost:3000/admin?id=${testRoomId}&key=${adminToken}`)
         break
 
       case 'vote-test':
@@ -95,7 +107,6 @@ async function main() {
       case 'cleanup':
         const cleanupRoomId = args[1] || 'TEST123'
         await redis.del(`room:${cleanupRoomId}`)
-        await redis.del(`admin:${cleanupRoomId}`)
         await redis.del(`votes:${cleanupRoomId}`)
         console.log(`🧹 Cleaned up room: ${cleanupRoomId}`)
         break
@@ -105,7 +116,7 @@ async function main() {
         console.log(`
 🗳️  GhostPoll Redis CLI
 
-Usage: tsx redis-cli.ts <command> [args...]
+Usage: tsx scripts/redis-cli.ts <command> [args...]
 
 Commands:
   get <key>                 Get value
@@ -119,11 +130,11 @@ Commands:
   cleanup [roomId]          Delete test data
   
 Examples:
-  tsx redis-cli.ts create-test
-  tsx redis-cli.ts vote-test TEST123 😍
-  tsx redis-cli.ts votes TEST123
-  tsx redis-cli.ts room TEST123
-  tsx redis-cli.ts cleanup TEST123
+  tsx scripts/redis-cli.ts create-test
+  tsx scripts/redis-cli.ts vote-test TEST123 😍
+  tsx scripts/redis-cli.ts votes TEST123
+  tsx scripts/redis-cli.ts room TEST123
+  tsx scripts/redis-cli.ts cleanup TEST123
         `)
         break
     }
@@ -133,4 +144,6 @@ Examples:
   }
 }
 
-main()
+main().finally(async () => {
+  await closeRedis()
+})
