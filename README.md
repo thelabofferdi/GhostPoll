@@ -5,11 +5,17 @@
 [![Nuxt 3](https://img.shields.io/badge/Nuxt-3-00DC82.svg)](https://nuxt.com)
 [![Docker](https://img.shields.io/badge/deploy-Docker-blue.svg)](./docs/VPS_DEPLOYMENT.md)
 
+<p align="center">
+  <a href="https://ghostpoll.enarilab.xyz">
+    <img src="https://img.shields.io/badge/Open%20the%20live%20app-ghostpoll.enarilab.xyz-111827?style=for-the-badge" alt="Open the live app: ghostpoll.enarilab.xyz">
+  </a>
+</p>
+
 **Self-hosted anonymous polls for quick decisions, live feedback, and temporary community voting.**
 
 GhostPoll lets anyone create a poll in seconds, share a link or QR code, collect anonymous votes, export the result, and automatically expire the data. It is built for teams, communities, classrooms, events, and indie products that need fast feedback without accounts, tracking-heavy SaaS, or platform lock-in.
 
-- Live demo: [ghostpoll.enarilab.xyz](https://ghostpoll.enarilab.xyz)
+- Live app: [https://ghostpoll.enarilab.xyz](https://ghostpoll.enarilab.xyz)
 - License: [MIT](./LICENSE)
 - Deployment target: VPS, Docker Compose, Redis
 
