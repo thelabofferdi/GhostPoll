@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a reproducible problem in GhostPoll.
+title: "Bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please remove secrets, admin links, Redis passwords, and private URLs from logs before submitting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: A short description of the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact actions needed to reproduce the issue.
+      placeholder: |
+        1. Create a poll with ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Poll creation
+        - Voting page
+        - Admin page
+        - Results or exports
+        - Docker or deployment
+        - Redis or persistence
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: Paste the commit SHA, branch, or deployment date if known.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, Node version, Docker version, deployment type, or other relevant context.
+      placeholder: |
+        Browser:
+        Node:
+        Docker:
+        Deployment:
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Add logs, screenshots, or screen recordings. Remove secrets first.

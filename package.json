@@ -2,10 +2,23 @@
   "name": "ghostpoll",
   "private": true,
   "description": "Self-hosted anonymous ephemeral polls with zero login and Redis-backed expiry.",
+  "homepage": "https://ghostpoll.enarilab.xyz",
   "license": "MIT",
+  "keywords": [
+    "anonymous-polls",
+    "self-hosted",
+    "zero-login",
+    "nuxt",
+    "redis",
+    "docker",
+    "privacy"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/thelabofferdi/GhostPoll.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thelabofferdi/GhostPoll/issues"
   },
   "engines": {
     "node": ">=22"

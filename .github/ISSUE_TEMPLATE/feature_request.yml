@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a product improvement for GhostPoll.
+title: "Feature: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        GhostPoll is intentionally zero-login, privacy-first, and self-hosted. Feature requests that preserve those constraints are the easiest to evaluate.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow or user need does this solve?
+      placeholder: Describe the situation where GhostPoll currently falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should GhostPoll add or change?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Poll creation
+        - Voting experience
+        - Admin controls
+        - Results visibility
+        - Exports
+        - Privacy or security
+        - Deployment
+        - Developer experience
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Are there simpler ways to solve this?
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Product fit
+      options:
+        - label: This keeps GhostPoll zero-login.
+        - label: This does not require a managed third-party service.
+        - label: This does not add long-term personal data storage.
