@@ -50,7 +50,7 @@ services:
       ghostpoll:
         condition: service_healthy
     environment:
-      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
     ports:
       - "80:80"
       - "443:443"

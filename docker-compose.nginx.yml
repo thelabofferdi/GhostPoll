@@ -9,3 +9,5 @@ services:
   caddy:
     profiles:
       - standalone-caddy
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
