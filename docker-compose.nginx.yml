@@ -1,0 +1,11 @@
+# Use this override on a VPS where Nginx or another host proxy already owns
+# ports 80 and 443. It keeps Caddy disabled and exposes GhostPoll only on
+# localhost for the host proxy to reach.
+services:
+  ghostpoll:
+    ports:
+      - "${GHOSTPOLL_BIND:-127.0.0.1}:${GHOSTPOLL_PORT:-3100}:3000"
+
+  caddy:
+    profiles:
+      - standalone-caddy

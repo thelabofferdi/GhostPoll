@@ -31,6 +31,37 @@ docker compose ps
 docker compose logs -f ghostpoll
 ```
 
+## VPS avec Nginx deja installe
+
+Si le VPS heberge deja d'autres projets derriere Nginx, ne lancez pas Caddy sur
+les ports `80` et `443`. Utilisez l'override Nginx pour exposer GhostPoll en
+local uniquement :
+
+```bash
+GHOSTPOLL_PORT=3100 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d --build
+```
+
+Ajoutez ensuite un vhost Nginx separe pour le domaine GhostPoll :
+
+```nginx
+server {
+    server_name ghostpoll.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+Puis activez HTTPS avec Certbot pour ce domaine.
+
 ## Vérifier
 
 ```bash
